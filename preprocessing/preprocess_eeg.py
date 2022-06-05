@@ -16,7 +16,7 @@ def format_file(file_name): return "{}/{}".format(FOLDER_PATH, file_name)
 
 def process_subjects(subject_paths):
     subject_count = len(subject_paths)
-    Path("../preprocessed_data/subjects").mkdir(parents=True, exist_ok=True)
+    Path("preprocessed_data/subjects").mkdir(parents=True, exist_ok=True)
     for index, subject_path in enumerate(subject_paths):
         print("Started processing {} of {} subjects".format(index + 1, subject_count))
 
@@ -43,7 +43,7 @@ def process_subjects(subject_paths):
         data_left -= averages_left
         data_right -= averages_right
 
-        np.save('../preprocessed_data/subjects/{}'.format(subject_path.split('.')[-2].split('/')[-1]),
+        np.save('preprocessed_data/subjects/{}'.format(subject_path.split('.')[-2].split('/')[-1]),
                 [data_left, data_right])
         print("Finished processing {} of {} subjects".format(index + 1, subject_count))
 
