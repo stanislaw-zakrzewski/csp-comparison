@@ -142,7 +142,7 @@ def process(subject_name, bands):
     # plt.legend(loc='lower right')
     # plt.show()
 
-    return w_times, scores_windows
+    return w_times, scores_windows, csp, epochs[0].info
 
 
 # chosen_bands = [(10., 12.)]
