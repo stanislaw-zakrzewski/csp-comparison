@@ -21,7 +21,7 @@ from data_classes.subject import Subject
 FOLDER_PATH = 'C:/Users/stz/Documents/Data/eeg_data'
 
 
-def process(subject_name, bands):
+def process(subject_name, bands, allowed_electrodes=[]):
     tmin, tmax = -1., 4.
     event_id = dict(left=0, right=1)
     subject = Subject(subject_name, FOLDER_PATH)
@@ -30,25 +30,25 @@ def process(subject_name, bands):
     for i in range(len(bands)):
         raw_signals.append(subject.get_raw_copy())
 
-    # allowed_electrodes = ['C5', 'C3', 'C1', 'C2', 'C4', 'C6', 'FC3', 'CP3', 'FC4', 'CP4']
-    # for channel in electrode_names:
-    #     if channel not in allowed_electrodes:
-    #         raw.drop_channels([channel])
+    if len(allowed_electrodes) > 0:
+        for raw_signal in raw_signals:
+            for channel in subject.electrode_names:
+                if channel not in allowed_electrodes:
+                    raw_signal.drop_channels([channel])
 
-    # Apply band-pass filter
     filtered_raw_signals = []
-
     epochs = []
     epochs_train = []
     epochs_data = []
     epochs_data_train = []
+
+    # Apply band-pass filter
     for index, band in enumerate(bands):
         filtered_raw_signals.append(
-            raw_signals[index].filter(band[0], band[1], fir_design='firwin', skip_by_annotation='edge'))
+            raw_signals[index].filter(band[0], band[1], l_trans_bandwidth=1, h_trans_bandwidth=1,  fir_design='firwin', skip_by_annotation='edge'))
 
     picks = pick_types(filtered_raw_signals[0].info, meg=False, eeg=True, stim=False, eog=False,
-                            exclude='bads')
-
+                       exclude='bads')
 
     for index, band in enumerate(bands):
         # Read epochs (train will be done only between 1 and 2s)
@@ -57,7 +57,6 @@ def process(subject_name, bands):
             Epochs(filtered_raw_signals[index], subject.events, event_id, tmin, tmax, proj=True, picks=picks,
                    baseline=None, preload=True))
         epochs_train.append(epochs[index].copy().crop(tmin=1., tmax=3.))
-
 
         # %%
         # Classification with linear discrimant analysis
@@ -144,7 +143,6 @@ def process(subject_name, bands):
 
     return w_times, scores_windows, csp, epochs[0].info
 
-
 # chosen_bands = [(10., 12.)]
 #
 # chosen_bands2 = [(20., 22.)]
@@ -171,7 +169,6 @@ def process(subject_name, bands):
 # plt.title('Classification score over time')
 # plt.legend(loc='lower right')
 # plt.show()
-
 
 
 # values = {}

@@ -23,44 +23,45 @@ if len(band_data) == 0:
         band_name = '{}Hz - {}Hz'.format(band[0], band[1])
         print("Started processing {} band".format(band_name))
         band_data.append(process('s14', [band]))
+        # ['C5', 'C3', 'C1', 'C2', 'C4', 'C6', 'FC3', 'CP3', 'FC4', 'CP4'] can be also passed to select channels
         print("Finish processing {} band".format(band_name))
 
 nd_band_data = np.asarray(band_data, dtype='object')
 np.save('experiments/temp_data/band_data', nd_band_data)
 
-fig, axs = plt.subplots(3, 6)
-fgs = []
+fig1, axs1 = plt.subplots(3, 6)
+
 for x_dim in range(3):
     for y_dim in range(6):
         band_data_index = x_dim * 6 + y_dim
         band_name = '{}Hz - {}Hz'.format(bands[band_data_index][0], bands[band_data_index][1])
 
         element = band_data[band_data_index]
-        mne_fig = element[2].plot_patterns(element[3],components=1, ch_type='eeg', units='Patterns (AU)', size=1.5)
+        mne_fig = element[2].plot_patterns(element[3], components=[1,2], ch_type='eeg', units='Patterns (AU)', size=1.5)
         plt.close(mne_fig)
         mne_fig.savefig('{}.png'.format(band_data_index))
-        axs[x_dim, y_dim].set_title('CSP {}'.format(band_name))
-        axs[x_dim, y_dim].imshow(plt.imread('{}.png'.format(band_data_index)))
+        axs1[x_dim, y_dim].set_title('CSP {}'.format(band_name))
+        axs1[x_dim, y_dim].imshow(plt.imread('{}.png'.format(band_data_index)))
         remove('{}.png'.format(band_data_index))
 
-
-plt.show()
+# plt.show()
 
 # oko = fgs[0].get_axes()[1]
 # axs[0, 0] = fgs[0].get_axes()[1]
 
+fig2, axs2 = plt.subplots(3, 6)
 
-for x_dim in range(len(axs)):
-    for y_dim in range(len(axs[0])):
-        band_data_index = x_dim * len(axs[0]) + y_dim
+for x_dim in range(len(axs2)):
+    for y_dim in range(len(axs2[0])):
+        band_data_index = x_dim * len(axs2[0]) + y_dim
         band_name = '{}Hz - {}Hz'.format(bands[band_data_index][0], bands[band_data_index][1])
 
-        fig.suptitle('Vertically stacked subplots')
-        axs[x_dim, y_dim].plot(band_data[band_data_index][0], np.mean(band_data[band_data_index][1], 0))
-        axs[x_dim, y_dim].axvline(0, linestyle='--', color='k', label='Onset')
-        axs[x_dim, y_dim].axhline(0.5, linestyle='-', color='k', label='Chance')
-        axs[x_dim, y_dim].set_xlabel('time (s)')
-        axs[x_dim, y_dim].set_ylabel('classification accuracy')
-        axs[x_dim, y_dim].set_ylim(0.4, 1)
-        axs[x_dim, y_dim].set_title('Classification {}'.format(band_name))
+        fig2.suptitle('Vertically stacked subplots')
+        axs2[x_dim, y_dim].plot(band_data[band_data_index][0], np.mean(band_data[band_data_index][1], 0))
+        axs2[x_dim, y_dim].axvline(0, linestyle='--', color='k', label='Onset')
+        axs2[x_dim, y_dim].axhline(0.5, linestyle='-', color='k', label='Chance')
+        axs2[x_dim, y_dim].set_xlabel('time (s)')
+        axs2[x_dim, y_dim].set_ylabel('classification accuracy')
+        axs2[x_dim, y_dim].set_ylim(0.4, 1)
+        axs2[x_dim, y_dim].set_title('Classification {}'.format(band_name))
 plt.show()

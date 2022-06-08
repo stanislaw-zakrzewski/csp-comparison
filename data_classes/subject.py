@@ -14,9 +14,9 @@ class Subject:
 
         data_left, data_right = np.load('preprocessed_data/subjects/{}.npy'.format(subject_name))
 
-        electrode_names = list(make_standard_montage('biosemi64').get_positions()['ch_pos'].keys())
+        self.electrode_names = list(make_standard_montage('biosemi64').get_positions()['ch_pos'].keys())
 
-        mne_info = create_info(electrode_names, 512, 'eeg')
+        mne_info = create_info(self.electrode_names, 512, 'eeg')
 
         raw1 = RawArray(data_left, mne_info)
         raw2 = RawArray(data_right, mne_info)
