@@ -21,7 +21,7 @@ from data_classes.subject import Subject
 FOLDER_PATH = 'C:/Users/stz/Documents/Data/eeg_data'
 
 
-def process(subject_name, bands, allowed_electrodes=[]):
+def process(subject_name, bands, selected_channels=[]):
     tmin, tmax = -1., 4.
     event_id = dict(left=0, right=1)
     subject = Subject(subject_name, FOLDER_PATH)
@@ -30,10 +30,10 @@ def process(subject_name, bands, allowed_electrodes=[]):
     for i in range(len(bands)):
         raw_signals.append(subject.get_raw_copy())
 
-    if len(allowed_electrodes) > 0:
+    if len(selected_channels) > 0:
         for raw_signal in raw_signals:
             for channel in subject.electrode_names:
-                if channel not in allowed_electrodes:
+                if channel not in selected_channels:
                     raw_signal.drop_channels([channel])
 
     filtered_raw_signals = []
@@ -45,7 +45,8 @@ def process(subject_name, bands, allowed_electrodes=[]):
     # Apply band-pass filter
     for index, band in enumerate(bands):
         filtered_raw_signals.append(
-            raw_signals[index].filter(band[0], band[1], l_trans_bandwidth=1, h_trans_bandwidth=1,  fir_design='firwin', skip_by_annotation='edge'))
+            raw_signals[index].filter(band[0], band[1], l_trans_bandwidth=1, h_trans_bandwidth=1, fir_design='firwin',
+                                      skip_by_annotation='edge'))
 
     picks = pick_types(filtered_raw_signals[0].info, meg=False, eeg=True, stim=False, eog=False,
                        exclude='bads')
@@ -71,8 +72,9 @@ def process(subject_name, bands, allowed_electrodes=[]):
     # Assemble a classifier
     classifier = MLPClassifier(hidden_layer_sizes=(20, 20), random_state=1,
                                max_iter=1000)  # Originally: LinearDiscriminantAnalysis()
-    classifier = LinearDiscriminantAnalysis()
-    csp = CSP(n_components=10, reg=None, log=True, norm_trace=False)
+    # classifier = LinearDiscriminantAnalysis()
+    csp_n_components = 10 if len(selected_channels) == 0 else min(len(selected_channels), 10)
+    csp = CSP(n_components=csp_n_components, reg=None, log=True, norm_trace=False)
 
     # Use scikit-learn Pipeline with cross_val_score function
     # clf = Pipeline([('CSP', csp), ('Classifier', classifier)])

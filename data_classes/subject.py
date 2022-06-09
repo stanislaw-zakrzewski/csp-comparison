@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 from scipy.io import loadmat
 from mne.io import concatenate_raws, RawArray
@@ -7,6 +9,7 @@ from mne.channels import make_standard_montage
 
 class Subject:
     def __init__(self, subject_name, filepath):
+
         self.subject_mat = loadmat("{}/{}.mat".format(filepath, subject_name))
         self.subject_mat_sensor_locations = self.subject_mat['eeg'][0][0]['senloc']
         self.subject_mat_events = self.subject_mat['eeg'][0][0]['imagery_event']
