@@ -1,10 +1,11 @@
-import os
-
 import numpy as np
-from scipy.io import loadmat
-from mne.io import concatenate_raws, RawArray
-from mne import Epochs, pick_types, events_from_annotations, create_info
+from mne import create_info
 from mne.channels import make_standard_montage
+from mne.io import concatenate_raws, RawArray
+from scipy.io import loadmat
+
+from config import eeg_data_path
+from preprocessing.preprocess_subject import preprocess_subject
 
 
 class Subject:
@@ -14,12 +15,15 @@ class Subject:
         self.subject_mat_sensor_locations = self.subject_mat['eeg'][0][0]['senloc']
         self.subject_mat_events = self.subject_mat['eeg'][0][0]['imagery_event']
         self.events = self.generate_events()
-
-        data_left, data_right = np.load('preprocessed_data/subjects/{}.npy'.format(subject_name))
-
         self.electrode_names = list(make_standard_montage('biosemi64').get_positions()['ch_pos'].keys())
 
         mne_info = create_info(self.electrode_names, 512, 'eeg')
+
+        try:
+            data_left, data_right = np.load('preprocessed_data/subjects/{}.npy'.format(subject_name))
+        except FileNotFoundError:
+            preprocess_subject(['{}/{}.mat'.format(eeg_data_path, subject_name)])
+            data_left, data_right = np.load('preprocessed_data/subjects/{}.npy'.format(subject_name))
 
         raw1 = RawArray(data_left, mne_info)
         raw2 = RawArray(data_right, mne_info)

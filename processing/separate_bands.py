@@ -1,30 +1,18 @@
 import numpy as np
-import matplotlib.pyplot as plt
-
-from sklearn.pipeline import Pipeline
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.model_selection import ShuffleSplit, cross_val_score
-
-from mne import Epochs, pick_types, events_from_annotations
-from mne.channels import make_standard_montage
-from mne.io import concatenate_raws, read_raw_edf
-from mne.datasets import eegbci
+from mne import Epochs, pick_types
 from mne.decoding import CSP
-from mne import Epochs, pick_types, events_from_annotations, create_info
-from mne.channels import make_standard_montage
-from mne.io import concatenate_raws, RawArray
-import scipy.io
-from scipy import signal
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.model_selection import ShuffleSplit
 from sklearn.neural_network import MLPClassifier
+
+from config import eeg_data_path
 from data_classes.subject import Subject
 
-FOLDER_PATH = 'C:/Users/stz/Documents/Data/eeg_data'
 
-
-def process(subject_name, bands, selected_channels=[]):
+def process(subject_name, bands, selected_channels):
     tmin, tmax = -1., 4.
     event_id = dict(left=0, right=1)
-    subject = Subject(subject_name, FOLDER_PATH)
+    subject = Subject(subject_name, eeg_data_path)
 
     raw_signals = []
     for i in range(len(bands)):
@@ -70,9 +58,9 @@ def process(subject_name, bands, selected_channels=[]):
     cv_split = cv.split(epochs_data_train[0])
 
     # Assemble a classifier
-    classifier = MLPClassifier(hidden_layer_sizes=(20, 20), random_state=1,
-                               max_iter=1000)  # Originally: LinearDiscriminantAnalysis()
-    # classifier = LinearDiscriminantAnalysis()
+    # classifier = MLPClassifier(hidden_layer_sizes=(20, 20), random_state=1,
+    #                            max_iter=1000)  # Originally: LinearDiscriminantAnalysis()
+    classifier = LinearDiscriminantAnalysis()
     csp_n_components = 10 if len(selected_channels) == 0 else min(len(selected_channels), 10)
     csp = CSP(n_components=csp_n_components, reg=None, log=True, norm_trace=False)
 
@@ -104,30 +92,31 @@ def process(subject_name, bands, selected_channels=[]):
     for train_idx, test_idx in cv_split:
         y_train, y_test = labels[train_idx], labels[test_idx]
 
-        X_train = []
-        X_test = []
+        x_train_csp = []
+        x_test_csp = []
         for edt in epochs_data_train:
-            if len(X_train) > 0:
-                X_train = np.concatenate((X_train, csp.fit_transform(edt[train_idx], y_train)), axis=1)
-                X_test = np.concatenate((X_test, csp.transform(edt[test_idx])), axis=1)
+            if len(x_train_csp) > 0:
+                x_train_csp = np.concatenate((x_train_csp, csp.fit_transform(edt[train_idx], y_train)), axis=1)
+                x_test_csp = np.concatenate((x_test_csp, csp.transform(edt[test_idx])), axis=1)
             else:
-                X_train = csp.fit_transform(edt[train_idx], y_train)
-                X_test = csp.transform(edt[test_idx])
+                x_train_csp = csp.fit_transform(edt[train_idx], y_train)
+                x_test_csp = csp.transform(edt[test_idx])
 
         # fit classifier
-        classifier.fit(X_train, y_train)
+        classifier.fit(x_train_csp, y_train)
 
         # running classifier: test classifier on sliding window
         score_this_window = []
         for n in w_start:
-            X_test = []
+            x_test_csp = []
             for edt in epochs_data:
-                if len(X_test) > 0:
-                    X_test = np.concatenate((X_test, csp.transform(epochs_data[0][test_idx][:, :, n:(n + w_length)])),
-                                            axis=1)
+                if len(x_test_csp) > 0:
+                    x_test_csp = np.concatenate(
+                        (x_test_csp, csp.transform(edt[test_idx][:, :, n:(n + w_length)])),
+                        axis=1)
                 else:
-                    X_test = csp.transform(epochs_data[0][test_idx][:, :, n:(n + w_length)])
-            score_this_window.append(classifier.score(X_test, y_test))
+                    x_test_csp = csp.transform(edt[test_idx][:, :, n:(n + w_length)])
+            score_this_window.append(classifier.score(x_test_csp, y_test))
         scores_windows.append(score_this_window)
 
     # Plot scores over time
