@@ -4,7 +4,7 @@ from os import remove
 from processing.separate_bands import process
 
 
-def process_bands(subject_name, bands, selected_channels=None):
+def process_bands(subject_name, bands, selected_channels=None, reg=None):
     if selected_channels is None:
         selected_channels = []
 
@@ -12,7 +12,7 @@ def process_bands(subject_name, bands, selected_channels=None):
     for band in bands:
         band_name = '{} Hz - {} Hz'.format(band[0], band[1])
         print("Processing {} band".format(band_name))
-        band_data.append(process(subject_name, [band], selected_channels))
+        band_data.append(process(subject_name, [band], selected_channels, reg))
 
     return band_data
 

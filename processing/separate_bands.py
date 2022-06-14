@@ -1,6 +1,6 @@
 import numpy as np
 from mne import Epochs, pick_types
-from mne.decoding import CSP
+from mne.decoding import CSP, EMS
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.model_selection import ShuffleSplit
 from sklearn.neural_network import MLPClassifier
@@ -9,7 +9,7 @@ from config import eeg_data_path
 from data_classes.subject import Subject
 
 
-def process(subject_name, bands, selected_channels):
+def process(subject_name, bands, selected_channels, reg=None):
     tmin, tmax = -1., 4.
     event_id = dict(left=0, right=1)
     subject = Subject(subject_name, eeg_data_path)
@@ -33,7 +33,7 @@ def process(subject_name, bands, selected_channels):
     # Apply band-pass filter
     for index, band in enumerate(bands):
         filtered_raw_signals.append(
-            raw_signals[index].filter(band[0], band[1], l_trans_bandwidth=1, h_trans_bandwidth=1, fir_design='firwin',
+            raw_signals[index].filter(band[0], band[1], l_trans_bandwidth=.5, h_trans_bandwidth=.5, fir_design='firwin',
                                       skip_by_annotation='edge'))
 
     picks = pick_types(filtered_raw_signals[0].info, meg=False, eeg=True, stim=False, eog=False,
@@ -62,7 +62,7 @@ def process(subject_name, bands, selected_channels):
     #                            max_iter=1000)  # Originally: LinearDiscriminantAnalysis()
     classifier = LinearDiscriminantAnalysis()
     csp_n_components = 10 if len(selected_channels) == 0 else min(len(selected_channels), 10)
-    csp = CSP(n_components=csp_n_components, reg=None, log=True, norm_trace=False)
+    csp = CSP(n_components=csp_n_components, reg=reg, log=True, norm_trace=False)
 
     # Use scikit-learn Pipeline with cross_val_score function
     # clf = Pipeline([('CSP', csp), ('Classifier', classifier)])
