@@ -26,7 +26,7 @@ def create_confusion_matrix(n_classes, predictions_sets, corrects_sets):
 def process(subject_name, bands, selected_channels, reg=None):
     tmin, tmax = 0., 2.
     event_id = dict(idle=0, left=1, right=2)
-    subject = Subject(subject_name, eeg_data_path, True)
+    subject = Subject(subject_name, eeg_data_path, True, True)
 
     raw_signals = []
     for i in range(len(bands)):
@@ -157,7 +157,7 @@ def main(subjects_id):
     confusion_matrix_fig.text(0.5, 0.96, 'Predicted Class', ha='center', va='center', size='xx-large')
     confusion_matrix_fig.text(0.06, 0.5, 'Expected Class', ha='center', va='center', size='xx-large',
                               rotation='vertical')
-    for confusion_matrix in confusion_matrices:
+    for subject_index, confusion_matrix in enumerate(confusion_matrices):
         labels = []
         for index, matrix_row in enumerate(confusion_matrix):
             row_sum = sum(matrix_row)
@@ -166,6 +166,7 @@ def main(subjects_id):
                 labels[index].append('{}\n{:.1f}%'.format(value, value / row_sum * 100))
         sns.heatmap(confusion_matrix, annot=labels, cbar=False, ax=confusion_matrix_ax[row, column], fmt='',
                     cmap='inferno')
+        confusion_matrix_ax[row, column].title.set_text('Subject: {}'.format(subject_index + 1))
         column += 1
         if column > 8:
             row += 1

@@ -9,7 +9,7 @@ from preprocessing.preprocess_subject import preprocess_subject
 
 
 class Subject:
-    def __init__(self, subject_name, filepath, with_rest=False):
+    def __init__(self, subject_name, filepath, with_rest=False, balanced=False):
 
         self.subject_mat = loadmat("{}/{}.mat".format(filepath, subject_name))
         self.subject_mat_sensor_locations = self.subject_mat['eeg'][0][0]['senloc']
@@ -27,7 +27,7 @@ class Subject:
             1].flatten()
         mne_info = create_info(self.electrode_names, 512, 'eeg')
 
-        self.events = self.generate_events(with_rest)
+        self.events = self.generate_events(with_rest, balanced)
 
         try:
             data_left, data_right = np.load('preprocessed_data/subjects/{}.npy'.format(subject_name))
@@ -49,20 +49,29 @@ class Subject:
     def get_raw_copy(self):
         return self.raw.copy()
 
-    def generate_events(self, with_rest=False):
+    def generate_events(self, with_rest=False, balanced=False):
         event_localizations = np.where(self.subject_mat_events == 1)[1]
         data = []
+        breaker = False
         for index, value in enumerate(event_localizations):
             if index not in self.bad_trials_mi_left and index not in self.bad_trials_voltage_left:
                 if with_rest:
-                    data.append([value - 1023, 0, 0])
+                    if breaker or not balanced:
+                        data.append([value - 1023, 0, 0])
+                        breaker = False
+                    else:
+                        breaker = True
                     data.append([value + 512, 0, 1])
                 else:
                     data.append([value, 0, 0])
         for index, value in enumerate(event_localizations):
             if index not in self.bad_trials_mi_right and index not in self.bad_trials_voltage_right:
                 if with_rest:
-                    data.append([value + len(self.subject_mat_events[0]) - 1023, 0, 0])
+                    if breaker or not balanced:
+                        data.append([value + len(self.subject_mat_events[0]) - 1023, 0, 0])
+                        breaker = False
+                    else:
+                        breaker = True
                     data.append([value + len(self.subject_mat_events[0]) + 512, 0, 2])
                 else:
                     data.append([value + len(self.subject_mat_events[0]), 0, 1])
