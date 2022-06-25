@@ -204,7 +204,7 @@ def process_hierarchical(subject_name, bands, selected_channels, reg=None):
     #                            max_iter=1000)  # Originally: LinearDiscriminantAnalysis()
     classifier_1 = LinearDiscriminantAnalysis()
     classifier_2 = LinearDiscriminantAnalysis()
-    csp_n_components = 10 if len(selected_channels) == 0 else min(len(selected_channels), 18)
+    csp_n_components = 10 if len(selected_channels) == 0 else min(len(selected_channels), 10)
     csp_1 = CSP(n_components=csp_n_components, reg=reg, log=True, norm_trace=False)
     csp_2 = CSP(n_components=csp_n_components, reg=reg, log=True, norm_trace=False)
 
@@ -302,15 +302,11 @@ def main(subjects_id):
     chosen_bands_1 = [(6., 30.)]
     chosen_bands_2 = [(9., 14.)]
     chosen_bands_3 = [(10., 12.)]
-    channels_1 = ['C3', 'C4']
-    channels_2 = ['C5', 'C3', 'C1', 'C2', 'C4', 'C6', 'FC3', 'CP3', 'FC4', 'CP4']
-    channels_3 = ['FC5', 'FC3', 'FC2', 'C5', 'C3', 'C1', 'CP5', 'CP3', 'CP1', 'FC2', 'FC4', 'FC6', 'C2', 'C4', 'C6',
-                  'CP2', 'CP4', 'CP6']
-    channels_4 = []
+    channels = ['C5', 'C3', 'C1', 'C2', 'C4', 'C6', 'FC3', 'CP3', 'FC4', 'CP4']
 
     confusion_matrices = []
-    all_scores = {'patient': [], 'accuracy': [], 'channels': []}
-    individual_classes = {'patient': [], 'accuracy': [], 'class': [], 'channels': []}
+    all_scores = {'patient': [], 'accuracy': [], 'bands': []}
+    individual_classes = {'patient': [], 'accuracy': [], 'class': [], 'bands': []}
     chances = {'values': [], 'patients': []}
     for patient_index in subjects_id:
         print('Processing', patient_index, 'of', len(subjects_id), 'subjects')
@@ -319,70 +315,56 @@ def main(subjects_id):
         else:
             patient_name = 's{}'.format(patient_index)
         window_times, window_scores, csp_filters, epochs_info, predictions, corrects = process(patient_name,
-                                                                                               chosen_bands_2, channels_1)
+                                                                                               chosen_bands_1, channels)
         for i in range(len(predictions)):
             all_scores['patient'].append(patient_index)
             all_scores['accuracy'].append(accuracy_score(predictions[i], corrects[i]))
-            all_scores['channels'].append('2')
+            all_scores['bands'].append('6-30Hz')
             for indx, elem in enumerate(get_individual_accuracy(predictions[i], corrects[i])):
                 if elem <= 1:
                     individual_classes['patient'].append(patient_index)
                     individual_classes['class'].append(indx)
                     individual_classes['accuracy'].append(elem)
-                    individual_classes['channels'].append('2')
+                    individual_classes['bands'].append('6-30Hz')
         chances['patients'].append(patient_index)
         chances['values'].append(st.binom.ppf(.9, len(predictions[0]), .3) / len(predictions[0]))
 
         window_times, window_scores, csp_filters, epochs_info, predictions, corrects = process(patient_name,
-                                                                                               chosen_bands_2, channels_2,
-                                                                                               )
+                                                                                               chosen_bands_2, channels,
+                                                                                              )
         for i in range(len(predictions)):
             all_scores['patient'].append(patient_index)
             all_scores['accuracy'].append(accuracy_score(predictions[i], corrects[i]))
-            all_scores['channels'].append('10')
+            all_scores['bands'].append('9-14Hz')
             for indx, elem in enumerate(get_individual_accuracy(predictions[i], corrects[i])):
                 if elem <= 1:
                     individual_classes['patient'].append(patient_index)
                     individual_classes['class'].append(indx)
                     individual_classes['accuracy'].append(elem)
-                    individual_classes['channels'].append('10')
+                    individual_classes['bands'].append('9-14Hz')
         chances['patients'].append(patient_index)
         chances['values'].append(st.binom.ppf(.9, len(predictions[0]), .3) / len(predictions[0]))
 
         window_times, window_scores, csp_filters, epochs_info, predictions, corrects = process(
             patient_name,
-            chosen_bands_2, channels_3)
+            chosen_bands_3, channels)
         for i in range(len(predictions)):
             all_scores['patient'].append(patient_index)
             all_scores['accuracy'].append(accuracy_score(predictions[i], corrects[i]))
-            all_scores['channels'].append('18')
+            all_scores['bands'].append('10-12Hz')
             for indx, elem in enumerate(get_individual_accuracy(predictions[i], corrects[i])):
                 if elem <= 1:
                     individual_classes['patient'].append(patient_index)
                     individual_classes['class'].append(indx)
                     individual_classes['accuracy'].append(elem)
-                    individual_classes['channels'].append('18')
-
-        # window_times, window_scores, csp_filters, epochs_info, predictions, corrects = process(
-        #     patient_name,
-        #     chosen_bands_2, channels_4)
-        # for i in range(len(predictions)):
-        #     all_scores['patient'].append(patient_index)
-        #     all_scores['accuracy'].append(accuracy_score(predictions[i], corrects[i]))
-        #     all_scores['channels'].append('64')
-        #     for indx, elem in enumerate(get_individual_accuracy(predictions[i], corrects[i])):
-        #         if elem <= 1:
-        #             individual_classes['patient'].append(patient_index)
-        #             individual_classes['class'].append(indx)
-        #             individual_classes['accuracy'].append(elem)
-        #             individual_classes['channels'].append('64')
-        # chances['patients'].append(patient_index)
-        # chances['values'].append(st.binom.ppf(.9, len(predictions[0]), .3) / len(predictions[0]))
+                    individual_classes['bands'].append('10-12Hz')
+        chances['patients'].append(patient_index)
+        chances['values'].append(st.binom.ppf(.9, len(predictions[0]), .3) / len(predictions[0]))
 
     all_scores = pd.DataFrame(data=all_scores)
     individual_classes = pd.DataFrame(data=individual_classes)
-    all_scores.to_csv('all_scores_channels.csv')
-    individual_classes.to_csv('individual_classes_channels.csv')
+    all_scores.to_csv('all_scores_bands.csv')
+    individual_classes.to_csv('individual_classes_bands.csv')
     chances = pd.DataFrame(chances['values'], index=chances['patients']).transpose()
 
     _accuracy_fig, accuracy_ax = plt.subplots()

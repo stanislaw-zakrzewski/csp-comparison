@@ -160,6 +160,7 @@ def main(subjects_id, show_confusion_matrix=True):
         # chances['values'].append(st.binom.ppf(.9, len(predictions[0]), .3) / len(predictions[0]))
 
     all_scores = pd.DataFrame(data=all_scores)
+    all_scores.to_csv('all_scores_model.csv')
     # chances = pd.DataFrame(chances['values'], index=chances['patients']).transpose()
 
     _accuracy_fig, accuracy_ax = plt.subplots()

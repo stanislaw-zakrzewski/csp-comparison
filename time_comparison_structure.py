@@ -8,6 +8,7 @@ from mne.decoding import CSP
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import ShuffleSplit
+import timeit
 
 from config import eeg_data_path
 from data_classes.subject import Subject
@@ -38,6 +39,7 @@ def create_confusion_matrix(n_classes, predictions_sets, corrects_sets):
 
 
 def process(subject_name, bands, selected_channels, reg=None, balanced=True):
+    runtime = []
     tmin, tmax = 0., 2.
     event_id = dict(idle=0, left=1, right=2)
     subject = Subject(subject_name, eeg_data_path, True, balanced)
@@ -77,7 +79,7 @@ def process(subject_name, bands, selected_channels, reg=None, balanced=True):
         epochs_data_train.append(epochs_train[index].get_data())
     labels = np.array(epochs[0].events[:, -1])
 
-    cv = ShuffleSplit(10, test_size=0.2, random_state=42)
+    cv = ShuffleSplit(1, test_size=0.2, random_state=42)
     cv_split = cv.split(epochs_data_train[0])
 
     # Assemble a classifier
@@ -100,6 +102,7 @@ def process(subject_name, bands, selected_channels, reg=None, balanced=True):
 
         x_train_csp = []
         x_test_csp = []
+        start_train = timeit.default_timer()
         for edt in epochs_data_train:
             if len(x_train_csp) > 0:
                 x_train_csp = np.concatenate((x_train_csp, csp.fit_transform(edt[train_idx], y_train)), axis=1)
@@ -110,8 +113,15 @@ def process(subject_name, bands, selected_channels, reg=None, balanced=True):
 
         # fit classifier
         classifier.fit(x_train_csp, y_train)
+
+        stop_train = timeit.default_timer()
+        runtime.append(stop_train-start_train)
+
+        start_test = timeit.default_timer()
         X_test_csp = csp.transform(epochs_data[0][test_idx])
         predictions = classifier.predict(X_test_csp)
+        stop_test = timeit.default_timer()
+        runtime.append(stop_test - start_test)
         all_predictions.append(predictions)
         all_correct.append(y_test)
 
@@ -130,10 +140,11 @@ def process(subject_name, bands, selected_channels, reg=None, balanced=True):
         scores_windows.append(score_this_window)
 
     w_times = (w_start + w_length / 2.) / sfreq + epochs[0].tmin
-    return w_times, scores_windows, csp, epochs[0].info, all_predictions, all_correct
+    return w_times, scores_windows, csp, epochs[0].info, all_predictions, all_correct, runtime
 
 
 def process_hierarchical(subject_name, bands, selected_channels, reg=None):
+    runtime = []
     tmin, tmax = 0., 2.
     event_1_id = dict(idle=0, imagery_movement=1)
     event_2_id = dict(left=1, right=2)
@@ -196,7 +207,7 @@ def process_hierarchical(subject_name, bands, selected_channels, reg=None):
     labels_1 = np.array(epochs_1[0].events[:, -1])
     labels_2 = np.array(epochs_2[0].events[:, -1])
 
-    cv = ShuffleSplit(10, test_size=0.2, random_state=42)
+    cv = ShuffleSplit(1, test_size=0.2, random_state=42)
     cv_split = cv.split(epochs_1_data_train[0])
 
     # Assemble a classifier
@@ -204,7 +215,7 @@ def process_hierarchical(subject_name, bands, selected_channels, reg=None):
     #                            max_iter=1000)  # Originally: LinearDiscriminantAnalysis()
     classifier_1 = LinearDiscriminantAnalysis()
     classifier_2 = LinearDiscriminantAnalysis()
-    csp_n_components = 10 if len(selected_channels) == 0 else min(len(selected_channels), 18)
+    csp_n_components = 10 if len(selected_channels) == 0 else min(len(selected_channels), 10)
     csp_1 = CSP(n_components=csp_n_components, reg=reg, log=True, norm_trace=False)
     csp_2 = CSP(n_components=csp_n_components, reg=reg, log=True, norm_trace=False)
 
@@ -228,7 +239,7 @@ def process_hierarchical(subject_name, bands, selected_channels, reg=None):
             if y_test_1[index] != 0:
                 test_idx_2.append(int((value - 1) / 2))
         y_train_2, y_test_2 = labels_2[train_idx_2], labels_2[test_idx_2]
-
+        start_train = timeit.default_timer()
         x_train_csp_1 = []
         x_test_csp_1 = []
         for edt in epochs_1_data_train:
@@ -254,6 +265,10 @@ def process_hierarchical(subject_name, bands, selected_channels, reg=None):
         # fit classifier
         classifier_1.fit(x_train_csp_1, y_train_1)
         classifier_2.fit(x_train_csp_2, y_train_2)
+        stop_train = timeit.default_timer()
+        runtime.append(stop_train - start_train)
+
+        start_test = timeit.default_timer()
         X_test_csp_1 = csp_1.transform(epochs_1_data[0][test_idx_1])
         predictions = classifier_1.predict(X_test_csp_1)
         pred = []
@@ -265,6 +280,9 @@ def process_hierarchical(subject_name, bands, selected_channels, reg=None):
                 csp_value = csp_2.transform(epochs_1_data[0][[value]])
                 classifier_value = classifier_2.predict(csp_value)
                 pred.append(classifier_value[0])
+
+        stop_test = timeit.default_timer()
+        runtime.append(stop_test - start_test)
 
         all_predictions.append(pred)
         all_correct.append(list(map(int, all_labels[test_idx_1])))
@@ -295,7 +313,7 @@ def process_hierarchical(subject_name, bands, selected_channels, reg=None):
             score_this_window.append(score)
 
     w_times = (w_start + w_length / 2.) / sfreq + epochs_1[0].tmin
-    return w_times, scores_windows, csp_1, epochs_1[0].info, all_predictions, all_correct
+    return w_times, scores_windows, csp_1, epochs_1[0].info, all_predictions, all_correct, runtime
 
 
 def main(subjects_id):
@@ -309,8 +327,7 @@ def main(subjects_id):
     channels_4 = []
 
     confusion_matrices = []
-    all_scores = {'patient': [], 'accuracy': [], 'channels': []}
-    individual_classes = {'patient': [], 'accuracy': [], 'class': [], 'channels': []}
+    times = {'patient': [], 'structure': [], 'train': [], 'test': []}
     chances = {'values': [], 'patients': []}
     for patient_index in subjects_id:
         print('Processing', patient_index, 'of', len(subjects_id), 'subjects')
@@ -318,102 +335,71 @@ def main(subjects_id):
             patient_name = 's0{}'.format(patient_index)
         else:
             patient_name = 's{}'.format(patient_index)
-        window_times, window_scores, csp_filters, epochs_info, predictions, corrects = process(patient_name,
-                                                                                               chosen_bands_2, channels_1)
-        for i in range(len(predictions)):
-            all_scores['patient'].append(patient_index)
-            all_scores['accuracy'].append(accuracy_score(predictions[i], corrects[i]))
-            all_scores['channels'].append('2')
-            for indx, elem in enumerate(get_individual_accuracy(predictions[i], corrects[i])):
-                if elem <= 1:
-                    individual_classes['patient'].append(patient_index)
-                    individual_classes['class'].append(indx)
-                    individual_classes['accuracy'].append(elem)
-                    individual_classes['channels'].append('2')
-        chances['patients'].append(patient_index)
-        chances['values'].append(st.binom.ppf(.9, len(predictions[0]), .3) / len(predictions[0]))
+        window_times, window_scores, csp_filters, epochs_info, predictions, corrects, runtime = process_hierarchical(patient_name,
+                                                                                               chosen_bands_2, channels_2)
 
-        window_times, window_scores, csp_filters, epochs_info, predictions, corrects = process(patient_name,
-                                                                                               chosen_bands_2, channels_2,
+        times['patient'].append(patient_index)
+        times['structure'].append('hierarchical')
+        times['train'].append(runtime[0])
+        times['test'].append(runtime[1])
+
+
+        window_times, window_scores, csp_filters, epochs_info, predictions, corrects, runtime = process(patient_name,
+                                                                                               chosen_bands_2, channels_2, balanced=False
                                                                                                )
-        for i in range(len(predictions)):
-            all_scores['patient'].append(patient_index)
-            all_scores['accuracy'].append(accuracy_score(predictions[i], corrects[i]))
-            all_scores['channels'].append('10')
-            for indx, elem in enumerate(get_individual_accuracy(predictions[i], corrects[i])):
-                if elem <= 1:
-                    individual_classes['patient'].append(patient_index)
-                    individual_classes['class'].append(indx)
-                    individual_classes['accuracy'].append(elem)
-                    individual_classes['channels'].append('10')
-        chances['patients'].append(patient_index)
-        chances['values'].append(st.binom.ppf(.9, len(predictions[0]), .3) / len(predictions[0]))
+        times['patient'].append(patient_index)
+        times['structure'].append('multiclass unbalanced')
+        times['train'].append(runtime[0])
+        times['test'].append(runtime[1])
 
-        window_times, window_scores, csp_filters, epochs_info, predictions, corrects = process(
+        window_times, window_scores, csp_filters, epochs_info, predictions, corrects, runtime = process(
             patient_name,
-            chosen_bands_2, channels_3)
-        for i in range(len(predictions)):
-            all_scores['patient'].append(patient_index)
-            all_scores['accuracy'].append(accuracy_score(predictions[i], corrects[i]))
-            all_scores['channels'].append('18')
-            for indx, elem in enumerate(get_individual_accuracy(predictions[i], corrects[i])):
-                if elem <= 1:
-                    individual_classes['patient'].append(patient_index)
-                    individual_classes['class'].append(indx)
-                    individual_classes['accuracy'].append(elem)
-                    individual_classes['channels'].append('18')
+            chosen_bands_2, channels_2)
+        times['patient'].append(patient_index)
+        times['structure'].append('multiclass balanced')
+        times['train'].append(runtime[0])
+        times['test'].append(runtime[1])
 
-        # window_times, window_scores, csp_filters, epochs_info, predictions, corrects = process(
-        #     patient_name,
-        #     chosen_bands_2, channels_4)
-        # for i in range(len(predictions)):
-        #     all_scores['patient'].append(patient_index)
-        #     all_scores['accuracy'].append(accuracy_score(predictions[i], corrects[i]))
-        #     all_scores['channels'].append('64')
-        #     for indx, elem in enumerate(get_individual_accuracy(predictions[i], corrects[i])):
-        #         if elem <= 1:
-        #             individual_classes['patient'].append(patient_index)
-        #             individual_classes['class'].append(indx)
-        #             individual_classes['accuracy'].append(elem)
-        #             individual_classes['channels'].append('64')
-        # chances['patients'].append(patient_index)
-        # chances['values'].append(st.binom.ppf(.9, len(predictions[0]), .3) / len(predictions[0]))
 
-    all_scores = pd.DataFrame(data=all_scores)
-    individual_classes = pd.DataFrame(data=individual_classes)
-    all_scores.to_csv('all_scores_channels.csv')
-    individual_classes.to_csv('individual_classes_channels.csv')
-    chances = pd.DataFrame(chances['values'], index=chances['patients']).transpose()
 
-    _accuracy_fig, accuracy_ax = plt.subplots()
-    accuracy_plot = sns.barplot(x="patient", y="accuracy", hue='bands', data=all_scores, ci="sd", ax=accuracy_ax,
-                                zorder=0)
-    # sns.pointplot(data=chances, join=False, color='orange', ax=accuracy_ax, zorder=1)
-    accuracy_plot.set(ylim=(0, 1))
-    plt.show()
+    times = pd.DataFrame(data=times)
+    times.to_csv('times_structure.csv')
 
-    confusion_matrix_fig, confusion_matrix_ax = plt.subplots(nrows=6, ncols=9)
-    row = 0
-    column = 0
-    confusion_matrix_fig.text(0.5, 0.96, 'Predicted Class', ha='center', va='center', size='xx-large')
-    confusion_matrix_fig.text(0.06, 0.5, 'Expected Class', ha='center', va='center', size='xx-large',
-                              rotation='vertical')
-    for subject_index, confusion_matrix in enumerate(confusion_matrices):
-        labels = []
-        for index, matrix_row in enumerate(confusion_matrix):
-            row_sum = sum(matrix_row)
-            labels.append([])
-            for value in matrix_row:
-                labels[index].append('{}\n{:.1f}%'.format(value, value / row_sum * 100))
-        sns.heatmap(confusion_matrix, annot=labels, cbar=False, ax=confusion_matrix_ax[row, column], fmt='',
-                    cmap='inferno')
-        confusion_matrix_ax[row, column].title.set_text('Subject: {}'.format(subject_index + 1))
-        column += 1
-        if column > 8:
-            row += 1
-            column = 0
-
-    plt.show()
+    # all_scores = pd.DataFrame(data=all_scores)
+    # individual_classes = pd.DataFrame(data=individual_classes)
+    # all_scores.to_csv('all_scores_channels.csv')
+    # individual_classes.to_csv('individual_classes_channels.csv')
+    # chances = pd.DataFrame(chances['values'], index=chances['patients']).transpose()
+    #
+    # _accuracy_fig, accuracy_ax = plt.subplots()
+    # accuracy_plot = sns.barplot(x="patient", y="accuracy", hue='bands', data=all_scores, ci="sd", ax=accuracy_ax,
+    #                             zorder=0)
+    # # sns.pointplot(data=chances, join=False, color='orange', ax=accuracy_ax, zorder=1)
+    # accuracy_plot.set(ylim=(0, 1))
+    # plt.show()
+    #
+    # confusion_matrix_fig, confusion_matrix_ax = plt.subplots(nrows=6, ncols=9)
+    # row = 0
+    # column = 0
+    # confusion_matrix_fig.text(0.5, 0.96, 'Predicted Class', ha='center', va='center', size='xx-large')
+    # confusion_matrix_fig.text(0.06, 0.5, 'Expected Class', ha='center', va='center', size='xx-large',
+    #                           rotation='vertical')
+    # for subject_index, confusion_matrix in enumerate(confusion_matrices):
+    #     labels = []
+    #     for index, matrix_row in enumerate(confusion_matrix):
+    #         row_sum = sum(matrix_row)
+    #         labels.append([])
+    #         for value in matrix_row:
+    #             labels[index].append('{}\n{:.1f}%'.format(value, value / row_sum * 100))
+    #     sns.heatmap(confusion_matrix, annot=labels, cbar=False, ax=confusion_matrix_ax[row, column], fmt='',
+    #                 cmap='inferno')
+    #     confusion_matrix_ax[row, column].title.set_text('Subject: {}'.format(subject_index + 1))
+    #     column += 1
+    #     if column > 8:
+    #         row += 1
+    #         column = 0
+    #
+    # plt.show()
 
 
 main(range(1, 53))
